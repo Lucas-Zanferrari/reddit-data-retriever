@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+	<flow name="reddit-data-retriever" doc:id="26f0e8ca-836e-4b48-92a9-8a7f6ad70cc5" >
+		<scheduler doc:name="Scheduler" doc:id="17dca966-3a97-4424-8a26-42810e0c4214" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="${secure::scheduler.frequency.qty}" timeUnit="HOURS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<logger level="INFO" doc:name="start" doc:id="0d57fb14-c726-49fe-97bc-a662e9984e87" message="Job started!"/>
+		<ee:transform doc:name="pageIndexes" doc:id="70d943e5-2c05-40aa-bebb-0040822ec647" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="pageIndexes" ><![CDATA[%dw 2.0
+output application/java
+---
+0 to (p('secure::reddit.total.pages') as Number - 1)]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<foreach doc:name="For Each" doc:id="37189087-3e11-4f29-a92d-4e32fa07676d" collection="#[vars.pageIndexes]">
+			<set-variable value="#[p('secure::reddit.page.size') as Number]" doc:name="pageSize" doc:id="3dbc5701-2aba-44c3-89fa-869601019c84" variableName="pageSize" />
+			<http:request method="GET" doc:name="get data from API" doc:id="37a70f5f-a8bb-430e-a4ae-4e6ac0f2e7b3" path="#[p('secure::reddit.resource') ++ &quot;.json&quot;]" config-ref="HTTP_Request_configuration">
+			<http:query-params><![CDATA[#[output application/java
+---
+{
+	"limit" : vars.pageSize,
+	"after" : vars.after default ""
+}]]]></http:query-params>
+		</http:request>
+			<set-variable value="#[payload.data.after]" doc:name="after" doc:id="feff350e-5f58-4699-8e7c-54bd8b99b5c0" variableName="after" />
+			<ee:transform doc:name="filter relevant data" doc:id="76ee8584-8ae9-478f-b642-76b8de39cdc8">
+			<ee:message>
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+((payload.data.children.data default []) filter ($.downs == 0 and $.ups >= 100)) map {
+	id: $.id,
+	title: $.title,
+	author: $.author,
+	thumbnail: $.thumbnail,
+	text: $.selftext,
+	ups: $.ups,
+	downs: $.downs
+}]]></ee:set-payload>
+			</ee:message>
+				<ee:variables>
+				</ee:variables>
+		</ee:transform>
+			<db:bulk-insert doc:name="Bulk insert" doc:id="45e8bb8a-62df-4c66-8465-5e031cb84043" config-ref="Database_Config">
+				<db:sql ><![CDATA[INSERT INTO ${secure::database.table} (id, title, author, thumbnail, text, ups, downs) 
+VALUES (:id, :title, :author, :thumbnail, :text, :ups, :downs)
+ON DUPLICATE KEY UPDATE 
+title = :title,
+author = :author,
+thumbnail = :thumbnail,
+text = :text,
+ups = :ups,
+downs = :downs]]></db:sql>
+			</db:bulk-insert>
+		</foreach>
+		<logger level="INFO" doc:name="end" doc:id="beb86945-7830-4f4a-8240-8c4f35e8c6f7" message="Job ended!" />
+	</flow>
+</mule>

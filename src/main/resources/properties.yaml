@@ -1,0 +1,18 @@
+reddit:
+  host: "www.reddit.com"
+  port: "443"
+  resource: "/r/aww"
+  total.pages: "10"
+  page.size: "100"
+
+database:
+  host: "![4TOPePsCR/jCib7IeHJQxA==]"
+  port: "![1G+EBoPR+O3KMB2YQwUYhQ==]"
+  name: "![NptgwxX8yzXPaNBvO542iQ==]"
+  table: "![55bqdAOvMlrQRqfMGTG/Rw==]"
+  username: "![IxFQdzr1WjtnIdfI3nITcg==]"
+  password: "![IHifXHoRt7TNZTJQgmkUQw==]"
+  
+scheduler:
+  frequency:
+    qty: "1"
